@@ -270,6 +270,14 @@ function MessageNotifications() {
       unreadCacheRef.current.set(room.roomId, unreadInfo);
 
       if (unreadInfo.total === 0) return;
+      // For rooms set to mentions-and-keywords only, skip notification unless
+      // the message actually triggered a highlight (mention/keyword).
+      if (
+        getNotificationType(mx, room.roomId) === NotificationType.MentionsAndKeywords &&
+        unreadInfo.highlight === 0
+      ) {
+        return;
+      }
       if (
         cachedUnreadInfo &&
         unreadEqual(unreadInfoToUnread(cachedUnreadInfo), unreadInfoToUnread(unreadInfo))
