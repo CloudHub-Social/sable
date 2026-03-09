@@ -23,6 +23,7 @@ import { SlidingSyncConfig, SlidingSyncDiagnostics, SlidingSyncManager } from '.
 const log = createLogger('initMatrix');
 const slidingSyncByClient = new WeakMap<MatrixClient, SlidingSyncManager>();
 const FAST_SYNC_POLL_TIMEOUT_MS = 10000;
+const SLIDING_SYNC_POLL_TIMEOUT_MS = 20000;
 type SyncTransport = 'classic' | 'sliding';
 type SyncTransportReason =
   | 'sliding_active'
@@ -340,6 +341,9 @@ export const stopClient = (mx: MatrixClient): void => {
   mx.stopClient();
 };
 
+export const getSlidingSyncManager = (mx: MatrixClient): SlidingSyncManager | undefined =>
+  slidingSyncByClient.get(mx);
+
 export const startClient = async (mx: MatrixClient, config?: StartClientConfig) => {
   log.log('startClient', mx.getUserId());
   disposeSlidingSync(mx);
@@ -422,7 +426,7 @@ export const startClient = async (mx: MatrixClient, config?: StartClientConfig) 
   const manager = new SlidingSyncManager(mx, resolvedProxyBaseUrl, {
     ...(slidingConfig ?? {}),
     includeInviteList: true,
-    pollTimeoutMs: slidingConfig?.pollTimeoutMs ?? FAST_SYNC_POLL_TIMEOUT_MS,
+    pollTimeoutMs: slidingConfig?.pollTimeoutMs ?? SLIDING_SYNC_POLL_TIMEOUT_MS,
   });
   const supported = await SlidingSyncManager.probe(
     mx,
@@ -443,6 +447,9 @@ export const startClient = async (mx: MatrixClient, config?: StartClientConfig) 
   }
 
   manager.attach();
+  // Begin background spidering so all rooms are eventually indexed.
+  // Not awaited — this runs incrementally in the background.
+  manager.startSpidering(100, 50);
   slidingSyncByClient.set(mx, manager);
   syncTransportByClient.set(mx, {
     transport: 'sliding',
